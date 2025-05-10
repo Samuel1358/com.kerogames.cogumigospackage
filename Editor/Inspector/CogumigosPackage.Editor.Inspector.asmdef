@@ -1,7 +1,10 @@
 {
-    "name": "CogumigosPackage",
+    "name": "CogumigosPackage.Editor.Inspector",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "GUID:b236d43a4ce3ea24f8817d45dbd939c3",
+        "GUID:ed0e6f2ca7a7e93469f178eb3c3195ca"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
