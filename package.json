@@ -4,7 +4,7 @@
   "displayName": "Cogumigos Package",
   "description": "Multiprefab, UnpackFBX & InstantiateBrush",
   "unity": "6000.0",
-  "hideInEditor":  false,
+  "hideInEditor":  true,
   "keywords": [
     "Cogumigos",
     "Multiprefab",
