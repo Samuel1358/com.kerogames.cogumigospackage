@@ -1,0 +1,17 @@
+{
+  "name": "com.kerogames.cogumigospackage",
+  "version": "1.0.0",
+  "displayName": "Cogumigos Package",
+  "description": "Multiprefab, UnpackFBX & InstantiateBrush",
+  "unity": "6000.0",
+  "hideInEditor":  false,
+  "keywords": [
+    "Cogumigos",
+    "Multiprefab",
+    "Samuel"
+  ],
+  "author": {
+    "name": "Samuel Gatinho Bazon",
+    "email": "bazonsamuel@gmail.com"
+  }
+}
