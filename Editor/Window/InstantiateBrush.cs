@@ -1,64 +1,35 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using System.Runtime.CompilerServices;
 
 namespace CogumigosPackage.Editor.Window
 {
-    public class InstantiateBrush : MonoBehaviour
-    {
-        public enum BrushType
-        {
-            Stamp,
-            Spread,
-            //Spray
-        }
-
-        [SerializeField] public Transform targetParent;
-
-        [SerializeField] public BrushType brushType = BrushType.Spread;
-
-        [SerializeField] public float instanceDistance = 2f;
-        [SerializeField] public bool randomObject;
-        [SerializeField] public bool randomRotationY = false;
-        [SerializeField]
-        [Range(0f, 1f)] public float randomScale = 0.5f;
-
-        [SerializeField] public LayerMask includeLayers;
-        [SerializeField] public List<GameObject> objects = new List<GameObject>();
-        private int _selectedIndex = 0;
-        [SerializeField] public int selectedIndex { get { if (_selectedIndex > objects.Count) _selectedIndex = 0; return _selectedIndex; } set { if (value < objects.Count) _selectedIndex = value; else _selectedIndex = 0; } }
-
-        // Get & Set
-        public int GetSelectedIndex()
-        {
-            return selectedIndex;
-        }
-
-        [ContextMenu("ClearList")]
-        public void ClearList()
-        {
-            objects.Clear();
-        }
-    }
-
 #if UNITY_EDITOR
-    [CustomEditor(typeof(InstantiateBrush))]
-    public class InstantiateBrushInspector : UnityEditor.Editor
+    public class InstantiateBrushWindow : EditorWindow
     {
-        private SerializedProperty _script;
-
-        private InstantiateBrush _instantiateBrush;
+        private InstantiateBrushData _data;
         private SerializedObject _serializedObject;
 
+        // header obrigatório
         private SerializedProperty _targetParent;
-
         private SerializedProperty _brushType;
 
+        // sizable brush
+        private SerializedProperty _brushSize;
+
+        // densidade
+        private SerializedProperty _density;
+
+        // spread
         private SerializedProperty _instanceDistance;
+
+        // instantiate obj
         private SerializedProperty _randomObject;
         private SerializedProperty _randomRotationY;
         private SerializedProperty _randomScale;
 
+        // footer obrigatório
         private SerializedProperty _includeLayers;
         private SerializedProperty _objects;
 
@@ -69,72 +40,117 @@ namespace CogumigosPackage.Editor.Window
 
         private void OnEnable()
         {
-            _script = serializedObject.FindProperty("m_Script");
+            _data = CreateInstance(typeof(InstantiateBrushData)) as InstantiateBrushData;
+            _serializedObject = new SerializedObject(_data);
 
-            _instantiateBrush = target as InstantiateBrush;
-            _serializedObject = new SerializedObject(_instantiateBrush);
-
+            // header obrigatório
             _targetParent = _serializedObject.FindProperty("targetParent");
-
             _brushType = _serializedObject.FindProperty("brushType");
 
+            // sizable brush
+            _brushSize = _serializedObject.FindProperty("brushSize");
+
+            // densidade
+            _density = _serializedObject.FindProperty("density");
+
+            // spread
             _instanceDistance = _serializedObject.FindProperty("instanceDistance");
+
+            // instantiate obj
             _randomObject = _serializedObject.FindProperty("randomObject");
             _randomRotationY = _serializedObject.FindProperty("randomRotationY");
             _randomScale = _serializedObject.FindProperty("randomScale");
 
+            // footer obrigatório
             _includeLayers = _serializedObject.FindProperty("includeLayers");
             _objects = _serializedObject.FindProperty("objects");
         }
 
-        public override void OnInspectorGUI()
+        private void OnBecameVisible()
         {
-            ScriptReferance();
+            SceneView.duringSceneGui += OnSceneGUI;
+        }
 
+        private void OnBecameInvisible()
+        {
+            SceneView.duringSceneGui -= OnSceneGUI;
+        }
+
+        [MenuItem("Tools/InstantiateBrush")]
+        public static void ShowWindow()
+        {
+            GetWindow<InstantiateBrushWindow>("Instantiate Brush");
+        }
+
+        private void OnGUI()
+        {
             SerializedFields();
 
-            int id = _instantiateBrush.selectedIndex;
-            GUICustomElements.FlexibleSelectionGrid(ref id, _instantiateBrush.objects);
-            _instantiateBrush.selectedIndex = id;
+            int id = _data.selectedIndex;
+            GUICustomElements.FlexibleSelectionGrid(ref id, _data.objects);
+            _data.selectedIndex = id;
         }
 
         #region // OnInspectorGUI
-
-        private void ScriptReferance()
-        {
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(_script, true);
-            EditorGUI.EndDisabledGroup();
-        }
 
         private void SerializedFields()
         {
             _serializedObject.Update();
 
+            // header obrigatório
             EditorGUILayout.PropertyField(_targetParent);
 
-            if (_instantiateBrush.targetParent == null)
-                EditorGUILayout.HelpBox("Without a TargetParent reference the object gonna be instantiated directly in the scene!", MessageType.Warning);
+            if (_data.targetParent == null)
+                EditorGUILayout.HelpBox("'Target Parent' need to be assigned!", MessageType.Error);
 
             EditorGUILayout.PropertyField(_brushType);
-            _instantiateBrush.brushType = (InstantiateBrush.BrushType)_brushType.enumValueIndex;
+            _data.brushType = (InstantiateBrushData.BrushType)_brushType.enumValueIndex;
 
-            if (_instantiateBrush.brushType == InstantiateBrush.BrushType.Spread)
+            #region // sizable brush
+
+            if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spray)
+            {
+                EditorGUILayout.PropertyField(_brushSize);
+            }
+
+            #endregion
+
+            #region // densidade
+
+            if (_data.brushType == InstantiateBrushData.BrushType.Spray)
+            {
+                EditorGUILayout.PropertyField(_density);
+            }
+
+            #endregion
+
+            #region // spread
+
+            if (_data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
+            {
                 EditorGUILayout.PropertyField(_instanceDistance);
-            else
-                GUILayout.FlexibleSpace();
+            }
 
-            GUILayout.BeginHorizontal();
+            #endregion
 
-            EditorGUILayout.PropertyField(_randomObject);
-            EditorGUILayout.PropertyField(_randomRotationY);
+            #region // instantiate obj
 
-            GUILayout.EndHorizontal();
+            if (_data.brushType == InstantiateBrushData.BrushType.Stamp || _data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
+            {
+                GUILayout.BeginHorizontal();
 
-            EditorGUILayout.PropertyField(_randomScale);
+                EditorGUILayout.PropertyField(_randomObject);
+                EditorGUILayout.PropertyField(_randomRotationY);
 
+                GUILayout.EndHorizontal();
+
+                EditorGUILayout.PropertyField(_randomScale);
+            }           
+
+            #endregion
+
+            // footer obrigatório
             EditorGUILayout.PropertyField(_includeLayers);
-
             EditorGUILayout.PropertyField(_objects);
 
             _serializedObject.ApplyModifiedProperties();
@@ -142,7 +158,7 @@ namespace CogumigosPackage.Editor.Window
 
         #endregion
 
-        private void OnSceneGUI()
+        private void OnSceneGUI(SceneView sceneView)
         {
             Event currentEvent = Event.current;
 
@@ -154,7 +170,7 @@ namespace CogumigosPackage.Editor.Window
             mousePosition.y = currentView.camera.pixelHeight - mousePosition.y;
             Ray ray = currentView.camera.ScreenPointToRay(mousePosition);
 
-            if (Physics.Raycast(ray, out _hit, Mathf.Infinity, _instantiateBrush.includeLayers))
+            if (Physics.Raycast(ray, out _hit, Mathf.Infinity, _data.includeLayers))
             {
                 //Debug.Log("Mouse está sobre: " + _hit.collider.gameObject.name);
                 _lastHitPoint = _hit.point;
@@ -166,7 +182,7 @@ namespace CogumigosPackage.Editor.Window
                     currentEvent.Use();
                 }
 
-                if (_instantiateBrush.brushType == InstantiateBrush.BrushType.Spread)
+                if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
                 {
                     if (currentEvent.type == EventType.MouseDrag && currentEvent.button == 0 && _isPainting)
                     {
@@ -190,14 +206,17 @@ namespace CogumigosPackage.Editor.Window
             currentView.Repaint();
 
             if (currentEvent.type == EventType.Repaint && _lastHitPoint.HasValue)
-                Handles.DrawWireDisc(_lastHitPoint.Value, _hit.normal, 1f);
+                Handles.DrawWireDisc(_lastHitPoint.Value, _hit.normal, _data.brushSize);
         }
 
         #region // OnSceneGUI
 
         private void Paint()
         {
-            if (_instantiateBrush.objects.Count <= 0)
+            if (_data.targetParent == null)
+                return;
+
+            if (_data.objects.Count <= 0)
             {
                 Debug.LogWarning("InstantiateBrush warning: No object assigned!");
                 return;
@@ -207,66 +226,168 @@ namespace CogumigosPackage.Editor.Window
                 return;
 
             int id;
-            if (_instantiateBrush.randomObject)
+            if (_data.randomObject)
                 id = Random.Range(0, _objects.arraySize);
             else
-                id = _instantiateBrush.selectedIndex;
+                id = _data.selectedIndex;
 
-            switch (_instantiateBrush.brushType)
+            switch (_data.brushType)
             {
-                case InstantiateBrush.BrushType.Stamp:
+                case InstantiateBrushData.BrushType.Eraser:
+                    EraserBrush();
+                    break;
+                case InstantiateBrushData.BrushType.Stamp:
                     StampBrush(id);
                     break;
-                case InstantiateBrush.BrushType.Spread:
+                case InstantiateBrushData.BrushType.Spread:
                     SpreadBrush(id);
+                    break;
+                case InstantiateBrushData.BrushType.Spray:
+                    SprayBrush(id);
                     break;
             }
         }
 
+        private void EraserBrush()
+        {
+            for (int i = 0; i < _data.targetParent.childCount; i++)
+            {
+                if (Vector3.Distance(_data.targetParent.GetChild(i).position, _hit.point) <= _data.brushSize)
+                {
+                    GameObject obj = _data.targetParent.GetChild(i).gameObject;
+                    Undo.DestroyObjectImmediate(obj);
+                }
+            }
+
+            _lastPaintedPoint = _hit.point;
+        }
+
         private void StampBrush(int id)
         {
-            GameObject obj = Instantiate(_instantiateBrush.objects[id], _hit.point, Quaternion.identity, _instantiateBrush.targetParent);
+            Debug.Log(PrefabUtility.IsPartOfPrefabAsset(_data.objects[id]));
+            GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
+            obj.transform.position = _hit.point;
+            obj.transform.up = _hit.normal;
+            obj.transform.parent = _data.targetParent;
             _lastPaintedPoint = _hit.point;
 
-            if (_instantiateBrush.randomRotationY)
+            if (_data.randomRotationY)
             {
                 float randY = Random.Range(0f, 360f);
                 obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
             }
 
-            obj.transform.localScale *= Random.Range(_instantiateBrush.randomScale, 1f);
+            obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
 
-            UndoRegister(obj);
+            UndoRegisterCreate(obj);
         }
 
         private void SpreadBrush(int id)
         {
             if (_lastPaintedPoint.HasValue)
             {
-                if (_instantiateBrush.instanceDistance > Vector3.Distance(_lastPaintedPoint.Value, _lastHitPoint.Value))
+                if (_data.instanceDistance > Vector3.Distance(_lastPaintedPoint.Value, _lastHitPoint.Value))
                     return;
             }
 
-            GameObject obj = Instantiate(_instantiateBrush.objects[id], _hit.point, Quaternion.identity, _instantiateBrush.targetParent);
+            GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
+            obj.transform.position = _hit.point;
+            obj.transform.up = _hit.normal;
+            obj.transform.parent = _data.targetParent;
             _lastPaintedPoint = _hit.point;
 
-            if (_instantiateBrush.randomRotationY)
+            if (_data.randomRotationY)
             {
                 float randY = Random.Range(0f, 360f);
                 obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
             }
 
-            obj.transform.localScale *= Random.Range(_instantiateBrush.randomScale, 1f);
+            obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
 
-            UndoRegister(obj);
+            UndoRegisterCreate(obj);
         }
 
-        private void UndoRegister(Object obj)
+        private void SprayBrush(int id)
+        {           
+            if (_lastPaintedPoint.HasValue)
+            {
+                if (_data.instanceDistance > Vector3.Distance(_lastPaintedPoint.Value, _lastHitPoint.Value))
+                    return;
+            }
+
+            for (int i = 0; i < _data.density; i++)
+            {
+                Vector2 randonPoint = Random.insideUnitCircle * _data.brushSize;
+                Vector3 pos = _hit.point + new Vector3(randonPoint.x, 0f, randonPoint.y);
+                if (Physics.Raycast(pos + Vector3.up * 10f, Vector3.down, out RaycastHit hit, 20f))
+                {
+                    GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
+                    obj.transform.position = hit.point;
+                    obj.transform.up = hit.normal;
+                    obj.transform.parent = _data.targetParent;
+                    _lastPaintedPoint = hit.point;
+
+                    if (_data.randomRotationY)
+                    {
+                        float randY = Random.Range(0f, 360f);
+                        obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
+                    }
+
+                    obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
+
+                    UndoRegisterCreate(obj);
+                }
+            }
+        }
+
+        private void UndoRegisterCreate(Object obj)
         {
-            Undo.RegisterCreatedObjectUndo(obj, $"InstantiateBrush: {obj.name}");
+            Undo.RegisterCreatedObjectUndo(obj, $"InstantiateBrush - Create: {obj.name}");
         }
 
         #endregion
     }
 #endif
+
+    public class InstantiateBrushData : ScriptableObject
+    {
+        public enum BrushType
+        {
+            Eraser,
+            Stamp,
+            Spread,
+            Spray
+        }
+
+        // header obrigatorio
+        [SerializeField] public Transform targetParent;
+        [SerializeField] public BrushType brushType = BrushType.Spread;
+
+        // sizable brush
+        [SerializeField, Range(0.1f, 20f)] public float brushSize = 1f;
+
+        // densidade
+        [SerializeField, Min(1)] public int density = 1;
+
+        // spread
+        [SerializeField] public float instanceDistance = 2f;
+
+        // instantiate obj
+        [SerializeField] public bool randomObject;
+        [SerializeField] public bool randomRotationY = false;
+        [SerializeField]
+        [Range(0f, 1f)] public float randomScale = 0.5f;
+
+        // footer obrigatorio
+        [SerializeField] public LayerMask includeLayers;
+        [SerializeField] public List<GameObject> objects = new List<GameObject>();
+
+        public int selectedIndex = 0;
+        
+        [ContextMenu("ClearList")]
+        public void ClearList()
+        {
+            objects.Clear();
+        }
+    }
 }
