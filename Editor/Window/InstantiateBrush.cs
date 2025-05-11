@@ -12,7 +12,8 @@ namespace CogumigosPackage.Editor.Window
         private SerializedObject _serializedObject;
 
         // header obrigatório
-        private SerializedProperty _targetParent;
+        private SerializedProperty _parentContainer;
+        private SerializedProperty _targetLayers;
         private SerializedProperty _brushType;
 
         // sizable brush
@@ -29,8 +30,10 @@ namespace CogumigosPackage.Editor.Window
         private SerializedProperty _randomRotationY;
         private SerializedProperty _randomScale;
 
-        // footer obrigatório
-        private SerializedProperty _includeLayers;
+        private string[] _instantiateModes = { "Prefab", "Clone" };
+        private int _instantiateModesIndex = 0;
+
+        // footer obrigatório       
         private SerializedProperty _objects;
 
         private RaycastHit _hit;
@@ -38,13 +41,16 @@ namespace CogumigosPackage.Editor.Window
         private bool _isPainting;
         private Vector3? _lastPaintedPoint;
 
+        private Color _handlesDefaultColor;
+
         private void OnEnable()
         {
             _data = CreateInstance(typeof(InstantiateBrushData)) as InstantiateBrushData;
             _serializedObject = new SerializedObject(_data);
 
             // header obrigatório
-            _targetParent = _serializedObject.FindProperty("targetParent");
+            _parentContainer = _serializedObject.FindProperty("parentContainer");
+            _targetLayers = _serializedObject.FindProperty("targetLayers");
             _brushType = _serializedObject.FindProperty("brushType");
 
             // sizable brush
@@ -61,9 +67,10 @@ namespace CogumigosPackage.Editor.Window
             _randomRotationY = _serializedObject.FindProperty("randomRotationY");
             _randomScale = _serializedObject.FindProperty("randomScale");
 
-            // footer obrigatório
-            _includeLayers = _serializedObject.FindProperty("includeLayers");
+            // footer obrigatório           
             _objects = _serializedObject.FindProperty("objects");
+
+            _handlesDefaultColor = Handles.color;
         }
 
         private void OnBecameVisible()
@@ -98,11 +105,12 @@ namespace CogumigosPackage.Editor.Window
             _serializedObject.Update();
 
             // header obrigatório
-            EditorGUILayout.PropertyField(_targetParent);
+            EditorGUILayout.PropertyField(_parentContainer);
 
-            if (_data.targetParent == null)
-                EditorGUILayout.HelpBox("'Target Parent' need to be assigned!", MessageType.Error);
+            if (_data.parentContainer == null)
+                EditorGUILayout.HelpBox("'Parent Container' need to be assigned!", MessageType.Error);
 
+            EditorGUILayout.PropertyField(_targetLayers);
             EditorGUILayout.PropertyField(_brushType);
             _data.brushType = (InstantiateBrushData.BrushType)_brushType.enumValueIndex;
 
@@ -137,21 +145,32 @@ namespace CogumigosPackage.Editor.Window
 
             if (_data.brushType == InstantiateBrushData.BrushType.Stamp || _data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
             {
-                GUILayout.BeginHorizontal();
-
                 EditorGUILayout.PropertyField(_randomObject);
                 EditorGUILayout.PropertyField(_randomRotationY);
 
-                GUILayout.EndHorizontal();
-
                 EditorGUILayout.PropertyField(_randomScale);
+
+                if ((_data.objects.Count > 0) ? PrefabUtility.IsPartOfPrefabAsset(_data.objects[_data.selectedIndex]) : false)
+                {
+                    GUILayout.BeginHorizontal();
+
+                    GUILayout.Label("Instantiate mode:");
+                    GUICustomElements.FlexibleSelectionGrid(ref _instantiateModesIndex, _instantiateModes);
+
+                    GUILayout.EndHorizontal();
+                }
+                else
+                    _instantiateModesIndex = 1;
+                
             }           
 
             #endregion
 
             // footer obrigatório
-            EditorGUILayout.PropertyField(_includeLayers);
             EditorGUILayout.PropertyField(_objects);
+
+            if (_data.objects.Count <= 0 && _data.brushType == InstantiateBrushData.BrushType.Eraser)
+                EditorGUILayout.HelpBox("The eraser don't work while 'Objects' list is empty!", MessageType.Warning);
 
             _serializedObject.ApplyModifiedProperties();
         }
@@ -170,9 +189,8 @@ namespace CogumigosPackage.Editor.Window
             mousePosition.y = currentView.camera.pixelHeight - mousePosition.y;
             Ray ray = currentView.camera.ScreenPointToRay(mousePosition);
 
-            if (Physics.Raycast(ray, out _hit, Mathf.Infinity, _data.includeLayers))
-            {
-                //Debug.Log("Mouse está sobre: " + _hit.collider.gameObject.name);
+            if (Physics.Raycast(ray, out _hit, Mathf.Infinity, _data.targetLayers))
+            {                
                 _lastHitPoint = _hit.point;
 
                 if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
@@ -196,7 +214,6 @@ namespace CogumigosPackage.Editor.Window
                         currentEvent.Use();
                     }
                 }
-
             }
             else
             {
@@ -206,23 +223,40 @@ namespace CogumigosPackage.Editor.Window
             currentView.Repaint();
 
             if (currentEvent.type == EventType.Repaint && _lastHitPoint.HasValue)
+            {
+                if (!CanPaint())
+                    Handles.color = Color.red;
+                else
+                    Handles.color = _handlesDefaultColor;
+
                 Handles.DrawWireDisc(_lastHitPoint.Value, _hit.normal, _data.brushSize);
+                
+                Handles.color = _handlesDefaultColor;
+            }
+
         }
 
         #region // OnSceneGUI
 
-        private void Paint()
+        private bool CanPaint()
         {
-            if (_data.targetParent == null)
-                return;
+            if (_data.parentContainer == null)
+                return false;
 
             if (_data.objects.Count <= 0)
             {
-                Debug.LogWarning("InstantiateBrush warning: No object assigned!");
-                return;
+                return false;
             }
 
             if (!_lastHitPoint.HasValue)
+                return false;
+
+            return true;
+        }
+
+        private void Paint()
+        {
+            if (!CanPaint())
                 return;
 
             int id;
@@ -250,11 +284,11 @@ namespace CogumigosPackage.Editor.Window
 
         private void EraserBrush()
         {
-            for (int i = 0; i < _data.targetParent.childCount; i++)
+            for (int i = 0; i < _data.parentContainer.childCount; i++)
             {
-                if (Vector3.Distance(_data.targetParent.GetChild(i).position, _hit.point) <= _data.brushSize)
+                if (Vector3.Distance(_data.parentContainer.GetChild(i).position, _hit.point) <= _data.brushSize)
                 {
-                    GameObject obj = _data.targetParent.GetChild(i).gameObject;
+                    GameObject obj = _data.parentContainer.GetChild(i).gameObject;
                     Undo.DestroyObjectImmediate(obj);
                 }
             }
@@ -264,22 +298,7 @@ namespace CogumigosPackage.Editor.Window
 
         private void StampBrush(int id)
         {
-            Debug.Log(PrefabUtility.IsPartOfPrefabAsset(_data.objects[id]));
-            GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
-            obj.transform.position = _hit.point;
-            obj.transform.up = _hit.normal;
-            obj.transform.parent = _data.targetParent;
-            _lastPaintedPoint = _hit.point;
-
-            if (_data.randomRotationY)
-            {
-                float randY = Random.Range(0f, 360f);
-                obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
-            }
-
-            obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
-
-            UndoRegisterCreate(obj);
+            UndoRegisterCreate(InstantiateObject(id, _hit));
         }
 
         private void SpreadBrush(int id)
@@ -290,21 +309,7 @@ namespace CogumigosPackage.Editor.Window
                     return;
             }
 
-            GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
-            obj.transform.position = _hit.point;
-            obj.transform.up = _hit.normal;
-            obj.transform.parent = _data.targetParent;
-            _lastPaintedPoint = _hit.point;
-
-            if (_data.randomRotationY)
-            {
-                float randY = Random.Range(0f, 360f);
-                obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
-            }
-
-            obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
-
-            UndoRegisterCreate(obj);
+            UndoRegisterCreate(InstantiateObject(id, _hit));
         }
 
         private void SprayBrush(int id)
@@ -321,23 +326,37 @@ namespace CogumigosPackage.Editor.Window
                 Vector3 pos = _hit.point + new Vector3(randonPoint.x, 0f, randonPoint.y);
                 if (Physics.Raycast(pos + Vector3.up * 10f, Vector3.down, out RaycastHit hit, 20f))
                 {
-                    GameObject obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
-                    obj.transform.position = hit.point;
-                    obj.transform.up = hit.normal;
-                    obj.transform.parent = _data.targetParent;
-                    _lastPaintedPoint = hit.point;
-
-                    if (_data.randomRotationY)
-                    {
-                        float randY = Random.Range(0f, 360f);
-                        obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
-                    }
-
-                    obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
-
-                    UndoRegisterCreate(obj);
+                    UndoRegisterCreate(InstantiateObject(id, hit));
                 }
             }
+        }
+
+        private GameObject InstantiateObject(int id, RaycastHit hit)
+        {
+            GameObject obj;
+            if (_instantiateModesIndex == 0)
+            {
+                obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
+            }
+            else
+            {
+                obj = Instantiate(_data.objects[id]);
+            }
+            
+            obj.transform.position = hit.point;
+            obj.transform.up = hit.normal;
+            obj.transform.parent = _data.parentContainer;
+            _lastPaintedPoint = hit.point;
+
+            if (_data.randomRotationY)
+            {
+                float randY = Random.Range(0f, 360f);
+                obj.transform.localRotation = Quaternion.Euler(obj.transform.localEulerAngles.x, randY, obj.transform.localEulerAngles.z);
+            }
+
+            obj.transform.localScale *= Random.Range(_data.randomScale, 1f);
+
+            return obj;
         }
 
         private void UndoRegisterCreate(Object obj)
@@ -360,7 +379,8 @@ namespace CogumigosPackage.Editor.Window
         }
 
         // header obrigatorio
-        [SerializeField] public Transform targetParent;
+        [SerializeField] public Transform parentContainer;
+        [SerializeField] public LayerMask targetLayers;
         [SerializeField] public BrushType brushType = BrushType.Spread;
 
         // sizable brush
@@ -375,11 +395,9 @@ namespace CogumigosPackage.Editor.Window
         // instantiate obj
         [SerializeField] public bool randomObject;
         [SerializeField] public bool randomRotationY = false;
-        [SerializeField]
-        [Range(0f, 1f)] public float randomScale = 0.5f;
+        [SerializeField, Range(0f, 1f)] public float randomScale = 0.5f;
 
-        // footer obrigatorio
-        [SerializeField] public LayerMask includeLayers;
+        // footer obrigatorio       
         [SerializeField] public List<GameObject> objects = new List<GameObject>();
 
         public int selectedIndex = 0;
