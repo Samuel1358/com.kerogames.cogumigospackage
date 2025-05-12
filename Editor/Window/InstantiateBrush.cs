@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using System.Runtime.CompilerServices;
 
 namespace CogumigosPackage.Editor.Window
 {
@@ -11,21 +10,33 @@ namespace CogumigosPackage.Editor.Window
         private InstantiateBrushData _data;
         private SerializedObject _serializedObject;
 
-        // header obrigatório
+        #region // Settings
+
+        private SerializedProperty _disabledPointerMarkColor;
+        private SerializedProperty _defaultPointerMarkColor;
+        private SerializedProperty _pointerMarkThickness;
+
+        private bool _settingsFoldout = false;
+
+        #endregion
+
+        #region // Parameters
+
+        // Header
         private SerializedProperty _parentContainer;
         private SerializedProperty _targetLayers;
         private SerializedProperty _brushType;
 
-        // sizable brush
+        // Brush size
         private SerializedProperty _brushSize;
 
-        // densidade
+        // Density
         private SerializedProperty _density;
 
-        // spread
+        // Spread
         private SerializedProperty _instanceDistance;
 
-        // instantiate obj
+        // Object variables
         private SerializedProperty _randomObject;
         private SerializedProperty _randomRotationY;
         private SerializedProperty _randomScale;
@@ -33,8 +44,10 @@ namespace CogumigosPackage.Editor.Window
         private string[] _instantiateModes = { "Prefab", "Clone" };
         private int _instantiateModesIndex = 0;
 
-        // footer obrigatório       
+        // Footer      
         private SerializedProperty _objects;
+
+        #endregion
 
         private RaycastHit _hit;
         private Vector3? _lastHitPoint;
@@ -48,27 +61,39 @@ namespace CogumigosPackage.Editor.Window
             _data = CreateInstance(typeof(InstantiateBrushData)) as InstantiateBrushData;
             _serializedObject = new SerializedObject(_data);
 
-            // header obrigatório
+            #region // Settings
+
+            _disabledPointerMarkColor = _serializedObject.FindProperty("disabledPointerColor");
+            _defaultPointerMarkColor = _serializedObject.FindProperty("defaultPointerColor");
+            _pointerMarkThickness = _serializedObject.FindProperty("pointerThickness");
+
+            #endregion
+
+            #region // Parameters
+
+            // Header
             _parentContainer = _serializedObject.FindProperty("parentContainer");
             _targetLayers = _serializedObject.FindProperty("targetLayers");
             _brushType = _serializedObject.FindProperty("brushType");
 
-            // sizable brush
+            // Brush size
             _brushSize = _serializedObject.FindProperty("brushSize");
 
-            // densidade
+            // Density
             _density = _serializedObject.FindProperty("density");
 
-            // spread
+            // Spread
             _instanceDistance = _serializedObject.FindProperty("instanceDistance");
 
-            // instantiate obj
+            // Object variables
             _randomObject = _serializedObject.FindProperty("randomObject");
             _randomRotationY = _serializedObject.FindProperty("randomRotationY");
             _randomScale = _serializedObject.FindProperty("randomScale");
 
-            // footer obrigatório           
+            // Footer          
             _objects = _serializedObject.FindProperty("objects");
+
+            #endregion
 
             _handlesDefaultColor = Handles.color;
         }
@@ -91,7 +116,15 @@ namespace CogumigosPackage.Editor.Window
 
         private void OnGUI()
         {
+            _serializedObject.Update();
+
+            SettingsFoldout();
+
+            GUILayout.Label("Parameters", EditorStyles.boldLabel);
+
             SerializedFields();
+
+            _serializedObject.ApplyModifiedProperties();
 
             int id = _data.selectedIndex;
             GUICustomElements.FlexibleSelectionGrid(ref id, _data.objects);
@@ -100,55 +133,83 @@ namespace CogumigosPackage.Editor.Window
 
         #region // OnInspectorGUI
 
+        private void SettingsFoldout()
+        {          
+            _settingsFoldout = EditorGUILayout.BeginFoldoutHeaderGroup(_settingsFoldout, "Settings");
+
+            if (_settingsFoldout)
+            {
+                EditorGUI.indentLevel++;
+
+                EditorGUILayout.PropertyField(_disabledPointerMarkColor);
+                EditorGUILayout.Space(1);
+                EditorGUILayout.PropertyField(_defaultPointerMarkColor);
+                EditorGUILayout.Space(1);
+                EditorGUILayout.PropertyField(_pointerMarkThickness);
+                EditorGUILayout.Space(1);
+
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            EditorGUILayout.Space(1);
+        }
+
         private void SerializedFields()
         {
-            _serializedObject.Update();
-
-            // header obrigatório
+            // Header
             EditorGUILayout.PropertyField(_parentContainer);
+            EditorGUILayout.Space(1);
 
             if (_data.parentContainer == null)
                 EditorGUILayout.HelpBox("'Parent Container' need to be assigned!", MessageType.Error);
 
             EditorGUILayout.PropertyField(_targetLayers);
+            EditorGUILayout.Space(1);
             EditorGUILayout.PropertyField(_brushType);
             _data.brushType = (InstantiateBrushData.BrushType)_brushType.enumValueIndex;
+            EditorGUILayout.Space(1);
 
-            #region // sizable brush
+            #region // Brush size
 
             if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spray)
             {
                 EditorGUILayout.PropertyField(_brushSize);
+                EditorGUILayout.Space(1);
             }
 
             #endregion
 
-            #region // densidade
+            #region // Density
 
             if (_data.brushType == InstantiateBrushData.BrushType.Spray)
             {
                 EditorGUILayout.PropertyField(_density);
+                EditorGUILayout.Space(1);
             }
 
             #endregion
 
-            #region // spread
+            #region // Spread
 
-            if (_data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
+            if (_data.brushType == InstantiateBrushData.BrushType.Spray)
             {
                 EditorGUILayout.PropertyField(_instanceDistance);
+                EditorGUILayout.Space(1);
             }
 
             #endregion
 
-            #region // instantiate obj
+            #region // Object variables
 
-            if (_data.brushType == InstantiateBrushData.BrushType.Stamp || _data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
+            if (_data.brushType == InstantiateBrushData.BrushType.Stamp || _data.brushType == InstantiateBrushData.BrushType.Spray)
             {
                 EditorGUILayout.PropertyField(_randomObject);
+                EditorGUILayout.Space(1);
                 EditorGUILayout.PropertyField(_randomRotationY);
-
+                EditorGUILayout.Space(1);
                 EditorGUILayout.PropertyField(_randomScale);
+                EditorGUILayout.Space(1);
 
                 if ((_data.objects.Count > 0) ? PrefabUtility.IsPartOfPrefabAsset(_data.objects[_data.selectedIndex]) : false)
                 {
@@ -156,6 +217,7 @@ namespace CogumigosPackage.Editor.Window
 
                     GUILayout.Label("Instantiate mode:");
                     GUICustomElements.FlexibleSelectionGrid(ref _instantiateModesIndex, _instantiateModes);
+                    EditorGUILayout.Space(1);
 
                     GUILayout.EndHorizontal();
                 }
@@ -166,13 +228,11 @@ namespace CogumigosPackage.Editor.Window
 
             #endregion
 
-            // footer obrigatório
+            // Footer
             EditorGUILayout.PropertyField(_objects);
 
             if (_data.objects.Count <= 0 && _data.brushType == InstantiateBrushData.BrushType.Eraser)
                 EditorGUILayout.HelpBox("The eraser don't work while 'Objects' list is empty!", MessageType.Warning);
-
-            _serializedObject.ApplyModifiedProperties();
         }
 
         #endregion
@@ -200,7 +260,7 @@ namespace CogumigosPackage.Editor.Window
                     currentEvent.Use();
                 }
 
-                if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spread || _data.brushType == InstantiateBrushData.BrushType.Spray)
+                if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spray)
                 {
                     if (currentEvent.type == EventType.MouseDrag && currentEvent.button == 0 && _isPainting)
                     {
@@ -225,11 +285,11 @@ namespace CogumigosPackage.Editor.Window
             if (currentEvent.type == EventType.Repaint && _lastHitPoint.HasValue)
             {
                 if (!CanPaint())
-                    Handles.color = Color.red;
+                    Handles.color = _data.disabledPointerColor;
                 else
-                    Handles.color = _handlesDefaultColor;
+                    Handles.color = _data.defaultPointerColor;
 
-                Handles.DrawWireDisc(_lastHitPoint.Value, _hit.normal, _data.brushSize);
+                Handles.DrawWireDisc(_lastHitPoint.Value, _hit.normal, _data.brushSize, _data.pointerThickness);
                 
                 Handles.color = _handlesDefaultColor;
             }
@@ -273,9 +333,9 @@ namespace CogumigosPackage.Editor.Window
                 case InstantiateBrushData.BrushType.Stamp:
                     StampBrush(id);
                     break;
-                case InstantiateBrushData.BrushType.Spread:
+                /*case InstantiateBrushData.BrushType.Spread:
                     SpreadBrush(id);
-                    break;
+                    break;*/
                 case InstantiateBrushData.BrushType.Spray:
                     SprayBrush(id);
                     break;
@@ -301,7 +361,7 @@ namespace CogumigosPackage.Editor.Window
             UndoRegisterCreate(InstantiateObject(id, _hit));
         }
 
-        private void SpreadBrush(int id)
+        /*private void SpreadBrush(int id)
         {
             if (_lastPaintedPoint.HasValue)
             {
@@ -310,7 +370,7 @@ namespace CogumigosPackage.Editor.Window
             }
 
             UndoRegisterCreate(InstantiateObject(id, _hit));
-        }
+        }*/
 
         private void SprayBrush(int id)
         {           
@@ -374,38 +434,49 @@ namespace CogumigosPackage.Editor.Window
         {
             Eraser,
             Stamp,
-            Spread,
-            Spray
+            Spray,
         }
 
-        // header obrigatorio
+        #region // Settings
+
+        [SerializeField] public Color disabledPointerColor = Color.red;
+        [SerializeField] public Color defaultPointerColor = Color.white;
+        [SerializeField, Min(1f)] public float pointerThickness = 1f;
+
+        #endregion
+
+        #region // Parameters
+
+        // Header
         [SerializeField] public Transform parentContainer;
         [SerializeField] public LayerMask targetLayers;
-        [SerializeField] public BrushType brushType = BrushType.Spread;
+        [SerializeField] public BrushType brushType = BrushType.Stamp;
 
-        // sizable brush
+        // Brush size
         [SerializeField, Range(0.1f, 20f)] public float brushSize = 1f;
 
-        // densidade
+        // Density
         [SerializeField, Min(1)] public int density = 1;
 
-        // spread
+        // Spread
         [SerializeField] public float instanceDistance = 2f;
 
-        // instantiate obj
+        // Object variables
         [SerializeField] public bool randomObject;
         [SerializeField] public bool randomRotationY = false;
         [SerializeField, Range(0f, 1f)] public float randomScale = 0.5f;
 
-        // footer obrigatorio       
+        // Footer    
         [SerializeField] public List<GameObject> objects = new List<GameObject>();
+
+        #endregion
 
         public int selectedIndex = 0;
         
-        [ContextMenu("ClearList")]
+        /*[ContextMenu("ClearList")]
         public void ClearList()
         {
             objects.Clear();
-        }
+        }*/
     }
 }
