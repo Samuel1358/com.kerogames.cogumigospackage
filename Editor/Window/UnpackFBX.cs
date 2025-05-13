@@ -50,7 +50,7 @@ namespace CogumigosPackage.Editor.Window
         {
             _serializedObject.Update();
 
-            _data.FBX = (GameObject)EditorGUILayout.ObjectField("FBX", _data.FBX, typeof(GameObject), false);
+            _data.FBX = (GameObject)EditorGUILayout.ObjectField(new GUIContent("FBX", "FBX asset reference."), _data.FBX, typeof(GameObject), false);
             if (_data.FBX != null)
             {
                 string path = AssetDatabase.GetAssetPath(_data.FBX);
@@ -103,7 +103,10 @@ namespace CogumigosPackage.Editor.Window
         {
             GUILayout.BeginHorizontal();
 
-            _isOverride = EditorGUILayout.Toggle("Override", _isOverride);
+            _isOverride = EditorGUILayout.Toggle(new GUIContent("Override", 
+                "If true, when there is an object with the same name as the unpacked object it will be overwritten. " +
+                "Else, will treat the unpacked object as a variant of the existing object."), 
+                _isOverride);
 
             GUILayout.FlexibleSpace();
 
@@ -130,7 +133,7 @@ namespace CogumigosPackage.Editor.Window
         {
             if (_hasFBX)
             {
-                _expandCheckList = EditorGUILayout.Foldout(_expandCheckList, "Prefabs export selection", true);
+                _expandCheckList = EditorGUILayout.Foldout(_expandCheckList, new GUIContent("Prefabs export selection", "List of all objects in the FBX asset; select the objects that will be unpacked and if they are static."), true);
 
                 if (_expandCheckList)
                 {
@@ -283,7 +286,8 @@ namespace CogumigosPackage.Editor.Window
         internal class UnpackFBXWindowData : ScriptableObject
         {
             public GameObject FBX;
-            public string folderPath;
+            [Tooltip("Path to the folder where the FBX should be unpacked.")]
+            [SerializeField] public string folderPath;
             public List<GameObject> children = new List<GameObject>();
             public List<bool> objCheckBoxes = new List<bool>();
             public List<bool> staticCheckBoxes = new List<bool>();
