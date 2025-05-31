@@ -8,8 +8,6 @@ namespace CogumigosPackage.Editor.Inspector
     [CustomEditor(typeof(MultiPrefab))]
     public class MultiPrefebEditor : UnityEditor.Editor
     {
-        private SerializedProperty _script;
-
         private MultiPrefab _multiPrefab;
         private SerializedObject _serializedObject;
 
@@ -26,8 +24,6 @@ namespace CogumigosPackage.Editor.Inspector
 
         private void OnEnable()
         {
-            _script = serializedObject.FindProperty("m_Script");
-
             _multiPrefab = target as MultiPrefab;
             _serializedObject = new SerializedObject(_multiPrefab);
 
@@ -45,10 +41,6 @@ namespace CogumigosPackage.Editor.Inspector
 
         public override void OnInspectorGUI()
         {
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(_script, true);
-            EditorGUI.EndDisabledGroup();
-
             SelectionMode();
 
             GUILayout.Space(4);
