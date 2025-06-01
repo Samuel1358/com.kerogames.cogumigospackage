@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-namespace CogumigosPackage
+namespace CogumigosPackage.Multiprefab
 {
     public class MultiPrefab : MonoBehaviour
     {
