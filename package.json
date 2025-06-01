@@ -1,6 +1,6 @@
 {
-  "name": "com.kerogames.cogumigospackage",
-  "version": "1.0.2",
+  "name": "com.bazonsamuel.cogumigospackage",
+  "version": "1.0.3",
   "displayName": "Cogumigos Package",
   "description": "Multiprefab, UnpackFBX & InstantiateBrush",
   "unity": "6000.0",
