@@ -1,7 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using CogumigosPackage.InstantiateBrush;
-using System.Collections;
 
 namespace CogumigosPackage.Editor.Window
 {
@@ -46,12 +45,8 @@ namespace CogumigosPackage.Editor.Window
         private int _instantiateModesIndex = 0;
 
         // Footer      
-        private SerializedProperty _instantiatePalette;       
+        private SerializedProperty _objects;
         public int _selectedIndex = 0;
-
-        // Palette
-        private SerializedObject _serializedPaletteObject;
-        private SerializedProperty _objectsList;
 
         #endregion
 
@@ -61,8 +56,6 @@ namespace CogumigosPackage.Editor.Window
         private Vector3? _lastPaintedPoint;
 
         private Color _handlesDefaultColor;
-
-        #region // Initialization
 
         private void OnEnable()
         {
@@ -99,7 +92,7 @@ namespace CogumigosPackage.Editor.Window
             _randomScale = _serializedObject.FindProperty("randomScale");
 
             // Footer          
-            _instantiatePalette = _serializedObject.FindProperty("instantiatePalette");          
+            _objects = _serializedObject.FindProperty("objects");
 
             #endregion
 
@@ -115,8 +108,6 @@ namespace CogumigosPackage.Editor.Window
         {
             SceneView.duringSceneGui -= OnSceneGUI;
         }
-
-        #endregion
 
         [MenuItem("Tools/InstantiateBrush")]
         public static void ShowWindow()
@@ -136,10 +127,7 @@ namespace CogumigosPackage.Editor.Window
 
             _serializedObject.ApplyModifiedProperties();
 
-            if (!IsPaletteReferenced())
-                return;
-
-            SerializedObjectSelection();
+            GUICustomElements.FlexibleSelectionGrid(ref _selectedIndex, _data.objects);
         }
 
         #region // OnInspectorGUI
@@ -211,7 +199,7 @@ namespace CogumigosPackage.Editor.Window
 
             #endregion
 
-            #region // ObjectVariables
+            #region // Object variables
 
             if (_data.brushType == InstantiateBrushData.BrushType.Stamp || _data.brushType == InstantiateBrushData.BrushType.Spray)
             {
@@ -221,69 +209,33 @@ namespace CogumigosPackage.Editor.Window
                 EditorGUILayout.Space(1);
                 EditorGUILayout.PropertyField(_randomScale);
                 EditorGUILayout.Space(1);
-            }
+
+                if ((_data.objects.Count > 0) ? PrefabUtility.IsPartOfPrefabAsset(_data.objects[_selectedIndex]) : false)
+                {
+                    GUILayout.BeginHorizontal();
+
+                    GUILayout.Label(new GUIContent("Instantiate mode:", "If the reference of the object to be instantiated is a prefab may choose instantiate it as a prefab or a clone of the GameObject"));
+                    GUICustomElements.FlexibleSelectionGrid(ref _instantiateModesIndex, _instantiateModes);
+                    EditorGUILayout.Space(1);
+
+                    GUILayout.EndHorizontal();
+                }
+                else
+                    _instantiateModesIndex = 1;
+                
+            }           
 
             #endregion
 
-            SerializedFotter();
-        }
-        
-        private void SerializedFotter()
-        {
-            SerializedInstantiatePalette();
+            // Footer
+            EditorGUILayout.PropertyField(_objects);
 
-            if (!IsPaletteReferenced())
+            if (_data.objects.Count <= 0)
             {
-                EditorGUILayout.HelpBox("No InstantiatePalette assigned!", MessageType.Error);               
-                if (_data.brushType == InstantiateBrushData.BrushType.Eraser)
-                    EditorGUILayout.HelpBox("The eraser don't work while 'Instantiate Palette' reference is empty!", MessageType.Warning);
-
-                return;
-            }
-
-            _serializedPaletteObject.Update();
-            EditorGUILayout.PropertyField(_objectsList);
-            _serializedPaletteObject.ApplyModifiedProperties();
-
-            if (_data.instantiatePalette.Objects.Count <= 0)
-            {
-                EditorGUILayout.HelpBox("No object assigned in the palette list!", MessageType.Warning);
+                EditorGUILayout.HelpBox("No object assigned in the list!", MessageType.Warning);
                 if (_data.brushType == InstantiateBrushData.BrushType.Eraser)
                     EditorGUILayout.HelpBox("The eraser don't work while 'Objects' list is empty!", MessageType.Warning);
             }
-
-        }
-
-        private void SerializedInstantiatePalette()
-        {
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(_instantiatePalette);
-            if (EditorGUI.EndChangeCheck())
-            {
-                _serializedObject.ApplyModifiedProperties();
-                _serializedObject.Update();
-
-                ReferPalette();
-            }
-        }
-
-        private void SerializedObjectSelection()
-        {
-            if ((_data.instantiatePalette.Objects.Count > 0))
-            {
-                GUILayout.BeginHorizontal();
-
-                GUILayout.Label(new GUIContent("Instantiate mode:", "Defines the mode how the selected object will be instantiated, as a prefab or a clone of the GameObject"));
-                GUICustomElements.FlexibleSelectionGrid(ref _instantiateModesIndex, _instantiateModes);
-                EditorGUILayout.Space(1);
-
-                GUILayout.EndHorizontal();
-            }
-            else
-                _instantiateModesIndex = 1;
-
-            EditorGUILayout.Space(6);
-            GUICustomElements.FlexibleSelectionGrid(ref _selectedIndex, _data.instantiatePalette.Objects);
         }
 
         #endregion
@@ -301,48 +253,36 @@ namespace CogumigosPackage.Editor.Window
             Ray ray = currentView.camera.ScreenPointToRay(mousePosition);
 
             if (Physics.Raycast(ray, out _hit, Mathf.Infinity, _data.targetLayers))
-            {
+            {                
                 _lastHitPoint = _hit.point;
 
-                PaintEvents(currentEvent);
+                if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
+                {
+                    _isPainting = true;
+                    Paint();
+                    currentEvent.Use();
+                }
+
+                if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spray)
+                {
+                    if (currentEvent.type == EventType.MouseDrag && currentEvent.button == 0 && _isPainting)
+                    {
+                        Paint();
+                        currentEvent.Use();
+                    }
+
+                    if (currentEvent.type == EventType.MouseUp && currentEvent.button == 0)
+                    {
+                        _isPainting = false;
+                        currentEvent.Use();
+                    }
+                }
             }
             else
             {
                 _lastHitPoint = null;
             }
 
-            DrawBrushCursor(currentView, currentEvent);
-        }
-
-        #region // OnSceneGUI
-
-        private void PaintEvents(Event currentEvent)
-        {           
-            if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
-            {
-                _isPainting = true;
-                Paint();
-                currentEvent.Use();
-            }
-
-            if (_data.brushType == InstantiateBrushData.BrushType.Eraser || _data.brushType == InstantiateBrushData.BrushType.Spray)
-            {
-                if (currentEvent.type == EventType.MouseDrag && currentEvent.button == 0 && _isPainting)
-                {
-                    Paint();
-                    currentEvent.Use();
-                }
-
-                if (currentEvent.type == EventType.MouseUp && currentEvent.button == 0)
-                {
-                    _isPainting = false;
-                    currentEvent.Use();
-                }
-            }
-        }
-
-        private void DrawBrushCursor(SceneView currentView, Event currentEvent)
-        {
             currentView.Repaint();
 
             if (currentEvent.type == EventType.Repaint && _lastHitPoint.HasValue)
@@ -356,19 +296,17 @@ namespace CogumigosPackage.Editor.Window
                 
                 Handles.color = _handlesDefaultColor;
             }
+
         }
 
-        #region // Paint
+        #region // OnSceneGUI
 
         private bool CanPaint()
         {
             if (_data.parentContainer == null)
                 return false;
 
-            if (!IsPaletteReferenced())
-                return false;
-
-            if (_data.instantiatePalette.Objects.Count <= 0)
+            if (_data.objects.Count <= 0)
             {
                 return false;
             }
@@ -386,7 +324,7 @@ namespace CogumigosPackage.Editor.Window
 
             int id;
             if (_data.randomObject)
-                id = Random.Range(0, _data.instantiatePalette.Objects.Count);
+                id = Random.Range(0, _objects.arraySize);
             else
                 id = _selectedIndex;
 
@@ -461,11 +399,11 @@ namespace CogumigosPackage.Editor.Window
             GameObject obj;
             if (_instantiateModesIndex == 0)
             {
-                obj = PrefabUtility.InstantiatePrefab(_data.instantiatePalette.Objects[id]) as GameObject;
+                obj = PrefabUtility.InstantiatePrefab(_data.objects[id]) as GameObject;
             }
             else
             {
-                obj = Instantiate(_data.instantiatePalette.Objects[id]);
+                obj = Instantiate(_data.objects[id]);
             }
             
             obj.transform.position = hit.point;
@@ -490,22 +428,6 @@ namespace CogumigosPackage.Editor.Window
         }
 
         #endregion
-
-        #endregion
-
-        private void ReferPalette()
-        {
-            if (!IsPaletteReferenced())
-                return;
-
-            _serializedPaletteObject = new SerializedObject(_data.instantiatePalette);
-            _objectsList = _serializedPaletteObject.FindProperty("_objects");
-        }
-
-        private bool IsPaletteReferenced()
-        {
-            return _data.instantiatePalette != null;
-        }
     }
 #endif
 
@@ -561,8 +483,7 @@ namespace CogumigosPackage.Editor.Window
 
         // Footer    
         [Tooltip("List of objects that maust be instantiateds by the 'Brush'; like a palette.")]
-        //[SerializeField] public List<GameObject> objects = new List<GameObject>();
-        [SerializeField] public InstantiatePalette instantiatePalette;
+        [SerializeField] public List<GameObject> objects = new List<GameObject>();
 
         #endregion
 
